@@ -1,0 +1,7 @@
+gdb bomb
+b 89
+b explode_bomb
+run
+Big isn't.
+1 1 2 3 5 8
+1 167
