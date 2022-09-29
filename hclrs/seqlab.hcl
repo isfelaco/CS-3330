@@ -15,7 +15,7 @@ rB = i10bytes[8..12];
 reg_srcA = rA;
 reg_srcB = rB;
 
-# constants
+# constant
 valC = [
     icode == IRMOVQ || icode == RMMOVQ   :   i10bytes[16..80];
     icode == JXX : i10bytes[8..72];
@@ -61,9 +61,16 @@ conditionsMet = [
 # destination of instruction
 reg_dstE = [
     !conditionsMet && icode == CMOVXX   :   REG_NONE;
-    icode == IRMOVQ || icode == RRMOVQ || icode == OPQ  :   rB;
-    #icode == RMMOVQ :  valC; 
+    icode == IRMOVQ || icode == RRMOVQ || icode == RMMOVQ || icode == OPQ  :   rB;
     1 : REG_NONE;
+];
+
+mem_addr = valC + reg_outputB;
+mem_input = reg_inputE;
+mem_readbit = 0;
+mem_writebit = [
+    icode == RMMOVQ :   1;
+    1   :   0;
 ];
 
 const TOO_BIG = 0xC; # the first unused icode in Y86-64
