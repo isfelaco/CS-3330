@@ -21,8 +21,8 @@ reg_dstE = [
     1 : REG_NONE;
 ];
 reg_inputE = [
-    icode == 3 : valC;  # if irmovq, move a constant
-    icode == 2 : reg_outputA;   # if rrmovq, move the value from first register
+    icode == IRMOVQ : valC;  # if irmovq, move a constant
+    icode == RRMOVQ : reg_outputA;   # if rrmovq, move the value from first register
     1 : 0;
 ];
 
@@ -31,7 +31,6 @@ const TOO_BIG = 0xC; # the first unused icode in Y86-64
 Stat = [
     icode == HALT               : STAT_HLT;
     icode >= TOO_BIG            : STAT_INS; # icode > 11 -> unused opcode
-    #0x7 <= icode && icode < 0xa : STAT_INS; # if there is a jXX, call, or ret icode
 	1                           : STAT_AOK;
 ];
 
