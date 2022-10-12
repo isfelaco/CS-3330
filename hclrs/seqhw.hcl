@@ -70,7 +70,7 @@ valE = [
 	icode == OPQ && ifun == SUBQ : reg_outputB - reg_outputA;
 	icode == OPQ && ifun == ANDQ : reg_outputA & reg_outputB;
 	icode == OPQ && ifun == XORQ : reg_outputA ^ reg_outputB;
-	icode in { RMMOVQ } : valC + reg_outputB;
+	icode == RMMOVQ || icode == MRMOVQ : valC + reg_outputB;
 	1 : 0;
 ];
 
@@ -83,7 +83,7 @@ stall_C = icode != OPQ;
 
 ########## Memory #############
 
-mem_readbit = false;
+mem_readbit = icode in { MRMOVQ };
 mem_writebit = icode in { RMMOVQ };
 mem_addr = valE;
 mem_input = reg_outputA;
@@ -92,7 +92,7 @@ mem_input = reg_outputA;
 ########## Writeback #############
 
 reg_dstE = [
-	icode == RRMOVQ && conditionsMet : rB;
+	(icode == RRMOVQ || icode == MRMOVQ) && conditionsMet : rB;
 	icode in {IRMOVQ, OPQ} : rB;
 	1 : REG_NONE;
 ];
@@ -100,6 +100,7 @@ reg_dstE = [
 
 reg_inputE = [
 	icode == RRMOVQ : reg_outputA;
+    icode == MRMOVQ : mem_output;
 	icode == OPQ : valE;
 	icode in {IRMOVQ} : valC;
 	1 : 0xbadbadbadbad;
