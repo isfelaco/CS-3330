@@ -1,6 +1,3 @@
-## SEQLAB solution for HCL3
-# Please do not consult this unless you've turned in HCL2 and HCL3.
-
 ########## the PC and condition codes registers #############
 register fF { 
 	pc:64 = 0; 
@@ -51,8 +48,6 @@ reg_srcB = [
 
 
 ########## Execute #############
-
-
 wire conditionsMet:1;
 conditionsMet = [
 	ifun == ALWAYS : true;
@@ -83,9 +78,7 @@ c_SF = valE >= 0x8000000000000000;
 stall_C = icode != OPQ;
 
 
-
 ########## Memory #############
-
 mem_readbit = icode in { MRMOVQ, POPQ, RET };
 mem_writebit = icode in { RMMOVQ, PUSHQ, CALL };
 mem_addr = [ 
@@ -99,7 +92,6 @@ mem_input = [
 
 
 ########## Writeback #############
-
 reg_dstE = [
 	icode in { RRMOVQ, MRMOVQ } && conditionsMet : rB;
 	icode in { IRMOVQ, OPQ} : rB;
@@ -131,13 +123,10 @@ Stat = [
 ];
 
 
-
 ########## PC Update #############
-
 f_pc = [
     icode == JXX && conditionsMet : valC;
     icode == CALL : valC;
     icode == RET : mem_output;
 	1 : valP;
 ];
-
