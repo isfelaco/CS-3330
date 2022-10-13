@@ -20,7 +20,7 @@ rA = i10bytes[12..16];
 rB = i10bytes[8..12];
 
 valC = [
-	icode in { JXX } : i10bytes[8..72];
+	icode in { JXX, CALL } : i10bytes[8..72];
 	1 : i10bytes[16..80];
 ];
 
@@ -37,11 +37,11 @@ valP = F_pc + offset;
 ########## Decode #############
 
 reg_srcA = [
-	icode in {RRMOVQ, RMMOVQ, OPQ, PUSHQ, POPQ} : rA;
+	icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ } : rA;
 	1 : REG_NONE;
 ];
 reg_srcB = [
-	icode in {OPQ, RMMOVQ} : rB;
+	icode in { OPQ, RMMOVQ, MRMOVQ } : rB;
     icode in { PUSHQ, POPQ, CALL, RET } : REG_RSP;
 	1 : REG_NONE;
 ];
@@ -93,8 +93,9 @@ mem_input = [
 
 ########## Writeback #############
 reg_dstE = [
-	icode in { RRMOVQ, MRMOVQ } && conditionsMet : rB;
+	icode in { RRMOVQ } && conditionsMet : rB;
 	icode in { IRMOVQ, OPQ} : rB;
+	icode == MRMOVQ : rA;
     icode in { PUSHQ, POPQ, CALL, RET } : REG_RSP;
 	1 : REG_NONE;
 ];
