@@ -7,7 +7,6 @@ register cC {
 	ZF:1 = 1;
 }
 
-
 ########## FETCH #############
 
 pc = F_pc ;
@@ -17,20 +16,20 @@ f_icode = i10bytes[4..8] ;
 f_ifun = i10bytes[0..4] ;
 
 wire need_regs : 1, need_immediate : 1 ;
-need_regs = d_icode in { RRMOVQ, IRMOVQ } ;
-need_immediate = d_icode in { IRMOVQ } ;
+need_regs = f_icode in { RRMOVQ, IRMOVQ } ;
+need_immediate = f_icode in { IRMOVQ } ;
 
 f_rA = [
-  need_regs : i10bytes[12..16] ;
+  f_icode in { RRMOVQ, IRMOVQ } : i10bytes[12..16] ;
   1 : REG_NONE ;
 ] ;
 f_rB = [
-  need_regs : i10bytes[8..12] ;
+  f_icode in { RRMOVQ, IRMOVQ } : i10bytes[8..12] ;
   1 : REG_NONE ;
 ] ;
 
 f_valC = [
-  need_immediate && need_regs : i10bytes[16..80] ; # displacement
+  need_immediate && need_regs : i10bytes[16..80] ; # displacement/value
   need_immediate : i10bytes[8..72] ; # destination of jump/call
   1 : 0 ;
 ] ;
@@ -41,13 +40,17 @@ offset = [
   f_icode in { RRMOVQ, OPQ} : 2 ;
   1 : 10 ;
 ] ;
-f_valP = F_pc + offset ; # next instruction
+f_valP = pc + offset ; # next instruction
 
+f_pc = [
+	1 : f_valP;
+];
 f_Stat = [
   f_icode == HALT : STAT_HLT ;
-  f_icode > 0xb : STAT_INS ;
-  1 : STAT_AOK ;
+	f_icode in { NOP, RRMOVQ, IRMOVQ, OPQ, CMOVXX } : STAT_AOK ;
+  1 : STAT_INS ;
 ] ;
+stall_F = f_Stat != STAT_AOK ;
 
 
 ########################################################################################
@@ -67,28 +70,22 @@ register fD {
 ########## DECODE #############
 
 # use D_valP to determine if there's a hazard in the next instruction ?
-reg_srcA = [
+d_srcA = [
   D_icode in { RRMOVQ, OPQ } : D_rA;
   1 : REG_NONE ;
 ] ;
-reg_srcB = [
-  D_icode in { OPQ, RMMOVQ } : D_rB;
+d_srcB = [
+  D_icode in { RRMOVQ, IRMOVQ, OPQ } : D_rB;
   1 : REG_NONE ;
 ] ;
+reg_srcA = d_srcA ;
+reg_srcB = d_srcB ;
+
 
 d_valA = [
-  (reg_srcA == W_dstE) && (reg_srcA != REG_NONE) : W_valE ; # prev dest equals reg to use
-                                              # then previous calculation is the new value
-  # add more conditions
-  (reg_srcA == W_dstM) && (reg_srcA != REG_NONE) : W_valM ;
   1 : reg_outputA ;
 ] ;
 d_valB = [
-  (reg_srcB == W_dstE) && (reg_srcB != REG_NONE) : W_valE ; # prev dest equals reg to use
-                                            # then previous calculation is the new value
-  # add more conditions
-  ((reg_srcB == W_dstM) && (reg_srcB != REG_NONE)) : W_valM ;
-  # maybe use m_dstM, W_valM
   1 : reg_outputB ;
 ] ;
 
@@ -96,9 +93,6 @@ d_valB = [
 d_dstE = [
 	D_icode in { IRMOVQ, RRMOVQ, OPQ} : D_rB;
 	1 : REG_NONE;
-];
-d_dstM = [
-  1 : REG_NONE;
 ];
 
 
@@ -115,8 +109,9 @@ register dE {
   valC : 64 = 0 ;
   valA : 64 = 0 ;
   valB : 64 = 0 ;
+  srcA : 4 = REG_NONE ;
+  srcB : 4 = REG_NONE ;
   dstE : 4  = REG_NONE ;
-  dstM : 4 = REG_NONE ;
 }
 ########################################################################################
 
@@ -139,16 +134,20 @@ e_Cnd = [
 
 # set valE, result of ALU
 e_valE = [
+  E_srcA == M_dstE && E_srcA != REG_NONE : M_valE ;
+  E_srcB == M_dstE && E_srcB != REG_NONE : M_valE ;
+
   # icodes that perform arithmetic
 	E_icode == OPQ && E_ifun == ADDQ : E_valA + E_valB ;
 	E_icode == OPQ && E_ifun == SUBQ : E_valB - E_valA ;
 	E_icode == OPQ && E_ifun == ANDQ : E_valA & E_valB ;
 	E_icode == OPQ && E_ifun == XORQ : E_valA ^ E_valB ;
   
-  E_icode == RRMOVQ : E_valA ; # so valA doesn't have to be passed down
+  #E_icode == RRMOVQ : E_valA ; # so valA doesn't have to be passed down
 
   # icodes that use valC
-  E_icode in { IRMOVQ } : E_valC ; # use valC as destination
+  E_icode in { RRMOVQ } : E_valA ; # use valC as destination
+  E_icode in { IRMOVQ } : E_valC ;
 
 	1 : 0 ;
 ];
@@ -156,9 +155,11 @@ e_valE = [
 # update condition codes for next instruction
 c_ZF = e_valE == 0;
 c_SF = e_valE >= 0x8000000000000000;
+stall_C = E_icode != OPQ;
+
 
 e_dstE = [
-  E_icode == RRMOVQ && !e_Cnd : REG_NONE ;
+  E_icode == CMOVXX && !e_Cnd : REG_NONE ;
   1 : E_dstE ;
 ];
 
@@ -167,7 +168,6 @@ e_Stat = E_Stat ;
 e_icode = E_icode ;
 e_valA = E_valA ;
 e_valB = E_valB ;
-e_dstM = E_dstM ;
 
 register eM {
   Stat : 3 = STAT_AOK ;
@@ -177,7 +177,6 @@ register eM {
   valA : 64 = 0 ;
   valB : 64 = 0 ;
   dstE : 4  = REG_NONE ;
-  dstM : 4  = REG_NONE ;
 }
 ########################################################################################
 
@@ -196,25 +195,18 @@ mem_input = [
     1 : M_valA ;
 ];
 
-m_valM = [ 
-  1 : mem_output ;
-];
-
 
 ########################################################################################
 m_Stat = M_Stat ;
 m_icode = M_icode ;
 m_valE = M_valE ;
 m_dstE = M_dstE ;
-m_dstM = M_dstM ;
 
 register mW {
   Stat : 3 = STAT_AOK ;
   icode : 4 = NOP ;
   valE : 64 = 0 ;
-  valM : 64 = 0 ;
   dstE : 4  = REG_NONE ;
-  dstM : 4 = REG_NONE ;
 }
 ########################################################################################
 
@@ -225,23 +217,13 @@ register mW {
 # destination selection
 
 reg_dstE = W_dstE ;
-reg_dstM = W_dstM ;
 
-reg_inputE = [ # get value to forward to next decode
+reg_inputE = [
 	W_icode in { RRMOVQ, IRMOVQ, OPQ } : W_valE ;
 	1 : 0xbadbadbadbad ;
-];
-reg_inputM = [
-  1 : 0;
 ];
 
 
 ########## PC and Status updates #############
 
 Stat = W_Stat ;
-
-
-f_pc = [
-  1 : W_valE ; # fetch new instruction, shouldn't need valP
-] ;
-stall_F =  Stat != STAT_AOK; # so that we see the same final PC as the yis tool
