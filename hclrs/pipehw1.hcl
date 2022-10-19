@@ -18,7 +18,7 @@ f_ifun = i10bytes[0..4] ;
 
 wire need_regs : 1, need_immediate : 1 ;
 need_regs = d_icode in { RRMOVQ, IRMOVQ } ;
-need_immediate = d_icode in { IRMOVQ, JXX } ;
+need_immediate = d_icode in { IRMOVQ } ;
 
 f_rA = [
   need_regs : i10bytes[12..16] ;
@@ -37,9 +37,8 @@ f_valC = [
 
 wire offset : 64 ;
 offset = [
-  f_icode in { HALT, NOP, RET } : 1 ;
-  f_icode in { RRMOVQ, OPQ, PUSHQ, POPQ } : 2 ;
-  f_icode in { JXX, CALL } : 9 ;
+  f_icode in { HALT, NOP } : 1 ;
+  f_icode in { RRMOVQ, OPQ} : 2 ;
   1 : 10 ;
 ] ;
 f_valP = F_pc + offset ; # next instruction
@@ -49,7 +48,6 @@ f_Stat = [
   f_icode > 0xb : STAT_INS ;
   1 : STAT_AOK ;
 ] ;
-stall_F = f_Stat != STAT_AOK; # so that we see the same final PC as the yis tool
 
 
 ########################################################################################
@@ -70,12 +68,11 @@ register fD {
 
 # use D_valP to determine if there's a hazard in the next instruction ?
 reg_srcA = [
-  D_icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ } : D_rA;
+  D_icode in { RRMOVQ, OPQ } : D_rA;
   1 : REG_NONE ;
 ] ;
 reg_srcB = [
-  D_icode in { OPQ, RMMOVQ, MRMOVQ } : D_rB;
-  D_icode in { PUSHQ, POPQ, CALL, RET } : REG_RSP; # now need to pass valB
+  D_icode in { OPQ, RMMOVQ } : D_rB;
   1 : REG_NONE ;
 ] ;
 
@@ -84,7 +81,6 @@ d_valA = [
                                               # then previous calculation is the new value
   # add more conditions
   (reg_srcA == W_dstM) && (reg_srcA != REG_NONE) : W_valM ;
-  D_icode == CALL : D_valP ; # store the next instruction so it can be placed on stack
   1 : reg_outputA ;
 ] ;
 d_valB = [
@@ -98,14 +94,10 @@ d_valB = [
 
 # set dstE and dstM, forward dstE then re-evaluate based on conditionsMet 
 d_dstE = [
-	# D_icode in { RRMOVQ } && conditionsMet : D_rB; 
 	D_icode in { IRMOVQ, RRMOVQ, OPQ} : D_rB;
-	D_icode == MRMOVQ : D_rA;
-  D_icode in { PUSHQ, POPQ, CALL, RET } : REG_RSP;
 	1 : REG_NONE;
 ];
 d_dstM = [
-  D_icode == POPQ : D_rB;
   1 : REG_NONE;
 ];
 
@@ -154,12 +146,9 @@ e_valE = [
 	E_icode == OPQ && E_ifun == XORQ : E_valA ^ E_valB ;
   
   E_icode == RRMOVQ : E_valA ; # so valA doesn't have to be passed down
-  E_icode in { PUSHQ, CALL } : E_valB - 8 ; # increment the stack pointer
-  E_icode in { POPQ, RET } : E_valB + 8 ; # decrement the stack pointer
 
   # icodes that use valC
-  E_icode in { IRMOVQ, JXX } : E_valC ; # use valC as destination
-	E_icode in { RMMOVQ, MRMOVQ } : E_valC + E_valB ; # use valC as displacement, calc addr for mem
+  E_icode in { IRMOVQ } : E_valC ; # use valC as destination
 
 	1 : 0 ;
 ];
@@ -198,20 +187,16 @@ register eM {
 
 # update Stat using M_Stat and data memory
 
-mem_readbit = M_icode in { MRMOVQ, POPQ, RET } ;
-mem_writebit = M_icode in { RMMOVQ, PUSHQ, CALL } ;
+mem_readbit = false ;
+mem_writebit = false ;
 mem_addr = [ 
-    M_icode in { POPQ, RET } : M_valB ; # reads from REG_RSP
     1 : M_valE ; # address calculated in ALU
 ];
 mem_input = [
-    # M_icode == CALL : valP ;
     1 : M_valA ;
 ];
 
 m_valM = [ 
-  M_icode == JXX && M_Cnd : M_valE ; # just a way to use Cnd
-  M_icode == CALL : M_valA ; # just a way to pass down valA
   1 : mem_output ;
 ];
 
@@ -243,12 +228,10 @@ reg_dstE = W_dstE ;
 reg_dstM = W_dstM ;
 
 reg_inputE = [ # get value to forward to next decode
-  W_icode == MRMOVQ : W_valM ; # memory output to register
-	W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL, RET } : W_valE ;
+	W_icode in { RRMOVQ, IRMOVQ, OPQ } : W_valE ;
 	1 : 0xbadbadbadbad ;
 ];
 reg_inputM = [
-  W_icode == POPQ : W_valM ;
   1 : 0;
 ];
 
@@ -259,7 +242,6 @@ Stat = W_Stat ;
 
 
 f_pc = [
-  # Stat != STAT_AOK : F_pc ; # fetch same instruction
-  W_icode in { JXX, CALL, RET } : W_valM ;
   1 : W_valE ; # fetch new instruction, shouldn't need valP
 ] ;
+stall_F =  Stat != STAT_AOK; # so that we see the same final PC as the yis tool
