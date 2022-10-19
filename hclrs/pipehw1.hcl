@@ -27,7 +27,11 @@ offset = [
 ] ;
 valP = F_pc + offset ;
 
+########## Pipeline Register Bank ##########
+register fD {
 
+}
+############################################
 ########## Decode #############
 
 # source selection
@@ -37,7 +41,7 @@ reg_srcA = [
 ] ;
 
 d_valA = [
-  W_dstE == reg_srcA && W_dstE != REG_NONE : reg_inputE ;
+  W_dstE == reg_srcA && W_dstE != REG_NONE : reg_inputE ; # previous destination equals current rA
   1 : reg_outputA ;
 ] ;
 
@@ -54,7 +58,6 @@ d_Stat = [
 
 
 ########## Pipeline Register Bank ##########
-
 register dW {
   icode : 4 = NOP ;
   valC : 64 = 0 ;
@@ -62,8 +65,25 @@ register dW {
   dstE : 4  = REG_NONE ;
   Stat : 3  = STAT_AOK ;
 }
+############################################
+########## Execute #############
 
 
+
+########## Pipeline Register Bank ##########
+register eM {
+
+}
+############################################
+########## Memory #############
+
+
+
+########## Pipeline Register Bank ##########
+register mW {
+
+}
+############################################
 ########## Writeback #############
 
 # destination selection
