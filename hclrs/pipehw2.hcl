@@ -1,5 +1,11 @@
 ########## the PC and condition codes registers #############
-register fF { pc : 64 = 0; }
+# replace fF pc with predPC for predicted pc value
+# to use this preduction, set pc = F_predPC
+register fF { 
+    pc : 64 = 0;
+    # predPC : 64 = 0;
+    # misprediction : 64 = 0;
+}
 register cC {
 	SF:1 = 0;
 	ZF:1 = 1;
@@ -8,7 +14,12 @@ register cC {
 
 
 ########## Fetch #############
-pc = F_pc;
+pc = [
+    # mispredicted  : oldValP
+    # other conditions ?
+    1               : F_pc;
+    # 1               : F_predPC;
+};
 
 f_icode = i10bytes[4..8];
 f_ifun = i10bytes[0..4];
@@ -43,7 +54,10 @@ valP = [
 ];
 
 # pc register update (to fetch immediately on next cycle)
-f_pc = valP;
+f_pc = [
+    # f_icode in { JXX }    : valC; # always take the jump
+    1       : valP;
+];
 
 f_Stat = [
 	f_icode == HALT                                         : STAT_HLT;
@@ -184,7 +198,9 @@ e_valE = [
 c_ZF = e_valE == 0;
 c_SF = e_valE >= 0x8000000000000000;
 stall_C = E_icode != OPQ;
-
+# check if prediction for JXX was wrong
+# set the bubble signals in order to reset the X_* pipeline register to their default values
+# pass some value called misprediction to the fetch register so it knows to call the last valP
 
 ########################################################################################
 e_Stat = E_Stat;
