@@ -23,11 +23,12 @@ f_icode = i10bytes[4..8];
 f_ifun = i10bytes[0..4];
 
 f_rA = [
-	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[12..16];  # note that IRMOVQ does not actually need rA
+	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : i10bytes[12..16];  # note that IRMOVQ does not actually need rA
 	1                                                   : REG_NONE;
 ];
 f_rB = [
 	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[8..12];
+    f_icode in { PUSHQ }                                : REG_RSP;
 	1                                                   : REG_NONE;
 ];
 f_valC = [
@@ -40,7 +41,7 @@ f_valC = [
 f_valP = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ }   : pc + 10;
 	f_icode in { JXX }                      : pc + 9;
-    f_icode in { RRMOVQ, OPQ }              : pc + 2;
+    f_icode in { RRMOVQ, OPQ, PUSHQ }       : pc + 2;
     f_icode == HALT                         : pc;
 	1                                       : pc + 1;
 ];
@@ -53,7 +54,7 @@ p_predPC = [
 
 f_Stat = [
 	f_icode == HALT                                         : STAT_HLT;
-	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX }   : STAT_AOK;
+	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ }   : STAT_AOK;
     #icode > 0xb : STAT_INS;
 	#1 : STAT_AOK;
 	1                                                       : STAT_INS;
@@ -76,12 +77,12 @@ register fD {
 ########## Decode #############
 # source selection
 reg_srcA = [
-	D_icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : D_rA;
+	D_icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : D_rA;
 	1                                           : REG_NONE;
 ];
 reg_srcB = [
-	D_icode in { RMMOVQ, MRMOVQ, OPQ }  : D_rB;
-	1                                   : REG_NONE;
+	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : D_rB;
+	1 : REG_NONE;
 ];
 
 wire loadUse : 1;
@@ -89,6 +90,7 @@ loadUse = E_icode == MRMOVQ && reg_srcB == e_dstM;  # MRMOVQ is moving to a regi
 stall_P = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
 stall_D = loadUse;                                  # keep same instruction in decode next cycle
 #bubble_E = loadUse;                                 # send nop to execute next cycle
+# had to comment this out, but probably will effect other stuff
 
 
 d_valA = [
@@ -118,12 +120,12 @@ d_valB = [
 
 # destination selection
 d_dstE = [
-	D_icode in { IRMOVQ, RRMOVQ, OPQ }  : D_rB;
+	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ }  : D_rB;
 	1                                   : REG_NONE;
 ];
 d_dstM = [
-    D_icode in { MRMOVQ }   : D_rA;
-    1                       : REG_NONE;
+    D_icode in { MRMOVQ }           : D_rA;
+    1                               : REG_NONE;
 ];
 
 
@@ -168,10 +170,11 @@ wire operand1:64, operand2:64;
 operand1 = [
     E_icode in { RRMOVQ, OPQ }      : E_valA;
 	E_icode in { RMMOVQ, MRMOVQ }   : E_valC;
+    E_icode in { PUSHQ }      : 8;
 	1                               : 0;
 ];
 operand2 = [
-	E_icode in { RMMOVQ, MRMOVQ, OPQ }  : E_valB;
+	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : E_valB;
 	1                                   : 0;
 ];
 
@@ -184,6 +187,9 @@ e_valE = [
     E_icode == OPQ && E_ifun == SUBQ    : operand2 - operand1 ;
     E_icode == OPQ && E_ifun == ANDQ    : operand1 & operand2 ;
     E_icode == OPQ && E_ifun == XORQ    : operand1 ^ operand2 ;
+
+    E_icode in { PUSHQ, CALL }          : operand2 - operand1;
+    #E_icode in { CALL }           : operand1 + operand2;
 
 	1                                   : 0;
 ];
@@ -221,9 +227,10 @@ register eM {
 
 ########## Memory #############
 mem_readbit = M_icode in { MRMOVQ };
-mem_writebit = M_icode in { RMMOVQ };
+mem_writebit = M_icode in { RMMOVQ, PUSHQ };
 mem_addr = [
 	M_icode in { MRMOVQ, RMMOVQ }   : M_valE;
+    M_icode in { RET }        : M_valA;
     1                               : 0xBADBADBAD;
 ];
 mem_input = [
@@ -256,7 +263,7 @@ register mW {
 
 ########## Writeback #############
 reg_inputE = [
-    W_icode in { RRMOVQ, IRMOVQ, OPQ }  : W_valE;
+    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ }  : W_valE;
     1                                   : 0xBADBADBAD;
 ];
 reg_inputM = [
