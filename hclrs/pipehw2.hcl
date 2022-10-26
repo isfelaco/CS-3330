@@ -1,8 +1,9 @@
 ########## the PC and condition codes registers #############
 
-register fF { 
+register pP { 
     predPC : 64 = 0;
     misprediction : 1 = 0;
+    valP : 64 = 0;
 }
 register cC {
 	SF:1 = 0;
@@ -13,31 +14,26 @@ register cC {
 
 ########## Fetch #############
 pc = [
-    F_misprediction  : E_valP;
+    P_misprediction : P_valP;
     # other conditions ?
-    1               : F_predPC;
+    1               : P_predPC;
 ];
 
 f_icode = i10bytes[4..8];
 f_ifun = i10bytes[0..4];
 
-wire need_regs:1, need_immediate:1;
-
-need_regs = f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ };
-need_immediate = f_icode in { IRMOVQ, RMMOVQ, MRMOVQ };         # will add JXX, CALL, RET
-
 f_rA = [
-	need_regs   : i10bytes[12..16];        # note that IRMOVQ does not actually need rA
-	1           : REG_NONE;
+	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[12..16];  # note that IRMOVQ does not actually need rA
+	1                                                   : REG_NONE;
 ];
 f_rB = [
-	need_regs   : i10bytes[8..12];
-	1           : REG_NONE;
+	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[8..12];
+	1                                                   : REG_NONE;
 ];
 f_valC = [
-	need_immediate && need_regs : i10bytes[16..80];     # value or displacement
-	need_immediate              : i10bytes[8..72];      # destination
-	1                           : 0;
+	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ } : i10bytes[16..80];     # value or displacement
+	f_icode in { JXX }                    : i10bytes[8..72];      # destination
+	1                                     : 0;
 ];
 
 # new PC (assuming there is no jump)
@@ -50,14 +46,14 @@ f_valP = [
 ];
 
 # pc register update (to fetch immediately on next cycle)
-f_predPC = [
+p_predPC = [
     f_icode in { JXX }    : f_valC; # always take the jump
     1       : f_valP;
 ];
 
 f_Stat = [
 	f_icode == HALT                                         : STAT_HLT;
-	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ}   : STAT_AOK;
+	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX }   : STAT_AOK;
     #icode > 0xb : STAT_INS;
 	#1 : STAT_AOK;
 	1                                                       : STAT_INS;
@@ -90,9 +86,9 @@ reg_srcB = [
 
 wire loadUse : 1;
 loadUse = E_icode == MRMOVQ && reg_srcB == e_dstM;  # MRMOVQ is moving to a register
-stall_F = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
+stall_P = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
 stall_D = loadUse;                                  # keep same instruction in decode next cycle
-bubble_E = loadUse;                                 # send nop to execute next cycle
+#bubble_E = loadUse;                                 # send nop to execute next cycle
 
 
 d_valA = [
@@ -196,8 +192,11 @@ e_valE = [
 c_ZF = e_valE == 0;
 c_SF = e_valE >= 0x8000000000000000;
 stall_C = E_icode != OPQ;
-f_misprediction = E_icode in { JXX } && e_Cnd;    # check if prediction for JXX was wrong
-# set the bubble signals in order to reset the X_* pipeline register to their default values
+
+p_misprediction = E_icode in { JXX } && !e_Cnd;
+p_valP = E_valP;
+bubble_E = p_misprediction;
+bubble_D = p_misprediction;
 
 ########################################################################################
 e_Stat = E_Stat;
@@ -239,18 +238,18 @@ m_Stat = M_Stat;
 m_icode = M_icode;
 m_valA = M_valA;
 m_valC = M_valC;
-m_valE = M_valE; # valE is value from ALU
+m_valE = M_valE;
 m_dstE = M_dstE;
 m_dstM = M_dstM;
 register mW {
-  Stat : 3 = STAT_AOK ;
-  icode : 4 = NOP ;
-  valA : 64 = 0 ;
-  valC : 64 = 0 ;
-  valE : 64 = 0 ;
-  dstE : 4 = REG_NONE ;
-  valM : 64 = 0 ;
-  dstM : 4 = REG_NONE ;
+  Stat : 3 = STAT_AOK;
+  icode : 4 = NOP;
+  valA : 64 = 0;
+  valC : 64 = 0;
+  valE : 64 = 0;
+  dstE : 4 = REG_NONE;
+  valM : 64 = 0;
+  dstM : 4 = REG_NONE;
 }
 ########################################################################################
 
@@ -267,7 +266,6 @@ reg_inputM = [
 
 reg_dstE = W_dstE;
 reg_dstM = W_dstM;
-
 
 ########## PC and Status updates #############
 
