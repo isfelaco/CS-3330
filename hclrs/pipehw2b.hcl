@@ -21,12 +21,12 @@ f_icode = i10bytes[4..8];
 f_ifun = i10bytes[0..4];
 
 f_rA = [
-	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ } : i10bytes[12..16];  # note that IRMOVQ does not actually need rA
+	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ } : i10bytes[12..16];  # note that IRMOVQ does not actually need rA
 	1                                                               : REG_NONE;
 ];
 f_rB = [
 	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[8..12];
-    f_icode in { PUSHQ }                    : REG_RSP;
+    f_icode in { PUSHQ, POPQ }                    : REG_RSP;
 	1                                                   : REG_NONE;
 ];
 f_valC = [
@@ -39,7 +39,7 @@ f_valC = [
 f_valP = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ }   : pc + 10;
 	f_icode in { JXX }                      : pc + 9;
-    f_icode in { RRMOVQ, OPQ, PUSHQ } : pc + 2;
+    f_icode in { RRMOVQ, OPQ, PUSHQ, POPQ } : pc + 2;
     f_icode == HALT                         : pc;
 	1                                       : pc + 1;
 ];
@@ -52,7 +52,7 @@ p_predPC = [
 
 f_Stat = [
 	f_icode == HALT                                         : STAT_HLT;
-	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ}   : STAT_AOK;
+	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ, POPQ}   : STAT_AOK;
     #icode > 0xb : STAT_INS;
 	#1 : STAT_AOK;
 	1                                                       : STAT_INS;
@@ -75,11 +75,11 @@ register fD {
 ########## Decode #############
 # source selection
 reg_srcA = [
-	D_icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ } : D_rA;
+	D_icode in { RRMOVQ, RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ } : D_rA;
 	1                                                       : REG_NONE;
 ];
 reg_srcB = [
-	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : D_rB;
+	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ }  : D_rB;
 	1 : REG_NONE;
 ];
 
@@ -111,12 +111,12 @@ d_valB = [
 
 # destination selection
 d_dstE = [
-	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ }  : D_rB;
+	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ }  : D_rB;
     # push updates stack pointer and puts it in rsp register
 	1                                   : REG_NONE;
 ];
 d_dstM = [
-    D_icode in { MRMOVQ }           : D_rA;
+    D_icode in { MRMOVQ, POPQ }           : D_rA; # pop takes from rsp and writes to rA
     1                               : REG_NONE;
 ];
 
@@ -165,7 +165,7 @@ operand1 = [
 	1                               : 0;
 ];
 operand2 = [
-	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ }  : E_valB;
+	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ }  : E_valB;
 	1                                   : 0;
 ];
 
@@ -180,7 +180,7 @@ e_valE = [
     E_icode == OPQ && E_ifun == XORQ    : operand1 ^ operand2 ;
 
     E_icode in { PUSHQ }                : operand2 - 8; # old rsp pointer - 8
-    #E_icode in { POPQ }                 : operand1 + operand2;
+    E_icode in { POPQ }                 : operand2 + 8; # old rsp pointer + 8
 
 	1                                   : 0;
 ];
@@ -229,10 +229,11 @@ register eM {
 
 
 ########## Memory #############
-mem_readbit = M_icode in { MRMOVQ };
+mem_readbit = M_icode in { MRMOVQ, POPQ };
 mem_writebit = M_icode in { RMMOVQ, PUSHQ };
 mem_addr = [
 	M_icode in { MRMOVQ, RMMOVQ, PUSHQ }   : M_valE;
+    M_icode in { POPQ }             : M_valB;
     1                               : 0xBADBADBAD;
 ];
 mem_input = [
@@ -266,11 +267,11 @@ register mW {
 
 ########## Writeback #############
 reg_inputE = [
-    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ }   : W_valE; #push writes to rsp
+    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ }   : W_valE; #push writes to rsp
     1                                                       : 0xBADBADBAD;
 ];
 reg_inputM = [
-	W_icode in { MRMOVQ } : W_valM;
+	W_icode in { MRMOVQ, POPQ } : W_valM;
     1                           : 0xBADBADBAD;
 ];
 
