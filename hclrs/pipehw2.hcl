@@ -28,19 +28,19 @@ f_rA = [
 ];
 f_rB = [
 	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[8..12];
-    f_icode in { PUSHQ, POPQ }                          : REG_RSP;
+    f_icode in { PUSHQ, POPQ, CALL }                          : REG_RSP;
 	1                                                   : REG_NONE;
 ];
 f_valC = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ } : i10bytes[16..80];     # value or displacement
-	f_icode in { JXX }                    : i10bytes[8..72];      # destination
+	f_icode in { JXX, CALL }                    : i10bytes[8..72];      # destination
 	1                                     : 0;
 ];
 
 # new PC (assuming there is no jump)
 f_valP = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ }   : pc + 10;
-	f_icode in { JXX }                      : pc + 9;
+	f_icode in { JXX, CALL }                      : pc + 9;
     f_icode in { RRMOVQ, OPQ, PUSHQ, POPQ } : pc + 2;
     f_icode == HALT                         : pc;
 	1                                       : pc + 1;
@@ -48,13 +48,13 @@ f_valP = [
 
 # pc register update (to fetch immediately on next cycle)
 p_predPC = [
-    f_icode in { JXX }    : f_valC; # always take the jump
+    f_icode in { JXX, CALL }    : f_valC; # always take the jump
     1       : f_valP;
 ];
 
 f_Stat = [
 	f_icode == HALT                                         : STAT_HLT;
-	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ, POPQ }   : STAT_AOK;
+	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ, POPQ, CALL }   : STAT_AOK;
     #icode > 0xb : STAT_INS;
 	#1 : STAT_AOK;
 	1                                                       : STAT_INS;
@@ -81,7 +81,7 @@ reg_srcA = [
 	1                                           : REG_NONE;
 ];
 reg_srcB = [
-	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ }  : D_rB;
+	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : D_rB;
 	1 : REG_NONE;
 ];
 
@@ -120,7 +120,7 @@ d_valB = [
 
 # destination selection
 d_dstE = [
-	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ }  : D_rB;
+	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : D_rB;
 	1                                   : REG_NONE;
 ];
 d_dstM = [
@@ -170,11 +170,11 @@ wire operand1:64, operand2:64;
 operand1 = [
     E_icode in { RRMOVQ, OPQ }      : E_valA;
 	E_icode in { RMMOVQ, MRMOVQ }   : E_valC;
-    E_icode in { PUSHQ, POPQ }      : 8;
+    E_icode in { PUSHQ, POPQ, CALL }      : 8;
 	1                               : 0;
 ];
 operand2 = [
-	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ }  : E_valB;
+	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : E_valB;
 	1                                   : 0;
 ];
 
@@ -188,7 +188,7 @@ e_valE = [
     E_icode == OPQ && E_ifun == ANDQ    : operand1 & operand2 ;
     E_icode == OPQ && E_ifun == XORQ    : operand1 ^ operand2 ;
 
-    E_icode in { PUSHQ }          : operand2 - operand1;
+    E_icode in { PUSHQ, CALL }          : operand2 - operand1;
     E_icode in { POPQ }           : operand1 + operand2;
 
 	1                                   : 0;
@@ -229,14 +229,15 @@ register eM {
 
 ########## Memory #############
 mem_readbit = M_icode in { MRMOVQ, POPQ };
-mem_writebit = M_icode in { RMMOVQ, PUSHQ };
+mem_writebit = M_icode in { RMMOVQ, PUSHQ, CALL };
 mem_addr = [
 	M_icode in { MRMOVQ, RMMOVQ }   : M_valE;
-    M_icode in { POPQ }        : M_valB;
+    M_icode in { POPQ, CALL }        : M_valB;
     1                               : 0xBADBADBAD;
 ];
 mem_input = [
 	M_icode in { RMMOVQ }   : M_valA;
+    M_icode in { CALL }     : M_valP;
     1                       : 0xBADBADBAD;
 ];
 m_valM = mem_output;
@@ -265,7 +266,7 @@ register mW {
 
 ########## Writeback #############
 reg_inputE = [
-    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ }  : W_valE;
+    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : W_valE;
     1                                   : 0xBADBADBAD;
 ];
 reg_inputM = [
