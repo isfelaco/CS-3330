@@ -1,10 +1,8 @@
 ########## the PC and condition codes registers #############
-# replace fF pc with predPC for predicted pc value
-# to use this preduction, set pc = F_predPC
+
 register fF { 
-    pc : 64 = 0;
-    # predPC : 64 = 0;
-    # misprediction : 64 = 0;
+    predPC : 64 = 0;
+    misprediction : 1 = 0;
 }
 register cC {
 	SF:1 = 0;
@@ -15,11 +13,10 @@ register cC {
 
 ########## Fetch #############
 pc = [
-    # mispredicted  : oldValP
+    F_misprediction  : E_valP;
     # other conditions ?
-    1               : F_pc;
-    # 1               : F_predPC;
-};
+    1               : F_predPC;
+];
 
 f_icode = i10bytes[4..8];
 f_ifun = i10bytes[0..4];
@@ -44,19 +41,18 @@ f_valC = [
 ];
 
 # new PC (assuming there is no jump)
-wire valP:64;
-valP = [
-	need_immediate && need_regs : pc + 10;
-	need_immediate              : pc + 9;
-    need_regs                   : pc + 2;
-    f_icode == HALT             : pc;
-	1                           : pc + 1;
+f_valP = [
+	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ }   : pc + 10;
+	f_icode in { JXX }                      : pc + 9;
+    f_icode in { RRMOVQ, OPQ }              : pc + 2;
+    f_icode == HALT                         : pc;
+	1                                       : pc + 1;
 ];
 
 # pc register update (to fetch immediately on next cycle)
-f_pc = [
-    # f_icode in { JXX }    : valC; # always take the jump
-    1       : valP;
+f_predPC = [
+    f_icode in { JXX }    : f_valC; # always take the jump
+    1       : f_valP;
 ];
 
 f_Stat = [
@@ -76,7 +72,7 @@ register fD {
   rA : 4 = REG_NONE;
   rB : 4 = REG_NONE;
   valC : 64 = 0;
-  #valP : 64 = 0;
+  valP : 64 = 0;
 }
 ########################################################################################
 
@@ -140,6 +136,7 @@ d_Stat = D_Stat;
 d_icode = D_icode;
 d_ifun = D_ifun;
 d_valC = D_valC;
+d_valP = D_valP;
 register dE {
   Stat : 3 = STAT_AOK;
   icode : 4 = NOP;
@@ -147,6 +144,7 @@ register dE {
   valA : 64 = 0;
   valB : 64 = 0;
   valC : 64 = 0;
+  valP : 64 = 0;
   dstE : 4 = REG_NONE;
   dstM : 4 = REG_NONE;
 }
@@ -198,21 +196,22 @@ e_valE = [
 c_ZF = e_valE == 0;
 c_SF = e_valE >= 0x8000000000000000;
 stall_C = E_icode != OPQ;
-# check if prediction for JXX was wrong
+f_misprediction = E_icode in { JXX } && e_Cnd;    # check if prediction for JXX was wrong
 # set the bubble signals in order to reset the X_* pipeline register to their default values
-# pass some value called misprediction to the fetch register so it knows to call the last valP
 
 ########################################################################################
 e_Stat = E_Stat;
 e_icode = E_icode;
 e_valA = E_valA;
 e_valC = E_valC;
+e_valP = E_valP;
 e_dstM = E_dstM;
 register eM {
   Stat : 3 = STAT_AOK;
   icode : 4 = NOP;
   valA : 64 = 0;
   valC : 64 = 0;
+  valP : 64 = 0;
   valE : 64 = 0;
   dstE : 4 = REG_NONE;
   dstM : 4 = REG_NONE;
