@@ -13,8 +13,8 @@ register cC {
 
 ########## Fetch #############
 pc = [
-    P_misprediction : P_valP;   # if there was a misprediction, go to instruction after last jump
-    1               : P_predPC; # else, continue to next instruction
+    P_misprediction : P_valP;
+    1               : P_predPC;
 ];
 
 f_icode = i10bytes[4..8];
@@ -31,14 +31,14 @@ f_rB = [
 ];
 f_valC = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ } : i10bytes[16..80];     # value or displacement
-	f_icode in { JXX, CALL }                    : i10bytes[8..72];      # destination
+	f_icode in { JXX, CALL }              : i10bytes[8..72];      # destination
 	1                                     : 0;
 ];
 
 # new PC (assuming there is no jump)
 f_valP = [
 	f_icode in { IRMOVQ, RMMOVQ, MRMOVQ }   : pc + 10;
-	f_icode in { JXX, CALL }                      : pc + 9;
+	f_icode in { JXX, CALL }                : pc + 9;
     f_icode in { RRMOVQ, OPQ, PUSHQ, POPQ } : pc + 2;
     f_icode == HALT                         : pc;
 	1                                       : pc + 1;
@@ -83,7 +83,15 @@ reg_srcB = [
 	1 : REG_NONE;
 ];
 
-# forwarding
+wire loadUse : 1;
+loadUse = E_icode == MRMOVQ && reg_srcB == e_dstM;  # MRMOVQ is moving to a register
+stall_P = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
+stall_D = loadUse;                                  # keep same instruction in decode next cycle
+bubble_E = loadUse || P_misprediction;                                 # send nop to execute next cycle
+#bubble_M = P_misprediction;
+# had to comment this out, but probably will effect other stuff
+
+
 d_valA = [
     reg_srcA == REG_NONE : 0;
 
@@ -112,11 +120,10 @@ d_valB = [
 # destination selection
 d_dstE = [
 	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : D_rB;
-    # push updates stack pointer and puts it in rsp register
 	1                                   : REG_NONE;
 ];
 d_dstM = [
-    D_icode in { MRMOVQ, POPQ }           : D_rA; # pop takes from rsp and writes to rA
+    D_icode in { MRMOVQ, POPQ }           : D_rA;
     1                               : REG_NONE;
 ];
 
@@ -162,6 +169,7 @@ wire operand1:64, operand2:64;
 operand1 = [
     E_icode in { RRMOVQ, OPQ }      : E_valA;
 	E_icode in { RMMOVQ, MRMOVQ }   : E_valC;
+    E_icode in { PUSHQ, POPQ, CALL }      : 8;
 	1                               : 0;
 ];
 operand2 = [
@@ -179,8 +187,8 @@ e_valE = [
     E_icode == OPQ && E_ifun == ANDQ    : operand1 & operand2 ;
     E_icode == OPQ && E_ifun == XORQ    : operand1 ^ operand2 ;
 
-    E_icode in { PUSHQ, CALL }                : operand2 - 8; # old rsp pointer - 8
-    E_icode in { POPQ }                 : operand2 + 8; # old rsp pointer + 8
+    E_icode in { PUSHQ, CALL }          : operand2 - operand1;
+    E_icode in { POPQ }                 : operand1 + operand2;
 
 	1                                   : 0;
 ];
@@ -193,17 +201,7 @@ stall_C = E_icode != OPQ;
 p_misprediction = E_icode in { JXX } && !e_Cnd;
 p_valP = E_valP;
 stall_E = loadUse && p_misprediction;
-
-wire loadUse : 1;
-loadUse = E_icode == MRMOVQ && (reg_srcB == e_dstM || reg_srcB == e_dstM);  # MRMOVQ is moving to a register
-stall_P = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
-stall_D = loadUse;                                  # keep same instruction in decode next cycle
-bubble_E = loadUse | p_misprediction;             # send nop to execute next cycle
 bubble_D = p_misprediction;
-# if there's a misprediction while JXX is in execute,
-# then we want to squash the instructions in fetch and decode
-# so the next decode and execute
-# HAS to be done here, before the next cycle
 
 ########################################################################################
 e_Stat = E_Stat;
@@ -232,12 +230,12 @@ register eM {
 mem_readbit = M_icode in { MRMOVQ, POPQ };
 mem_writebit = M_icode in { RMMOVQ, PUSHQ, CALL };
 mem_addr = [
-	M_icode in { MRMOVQ, RMMOVQ, PUSHQ, CALL }   : M_valE;
-    M_icode in { POPQ }             : M_valB;
+	M_icode in { MRMOVQ, RMMOVQ }   : M_valE;
+    M_icode in { PUSHQ, POPQ, CALL }       : M_valB;
     1                               : 0xBADBADBAD;
 ];
 mem_input = [
-	M_icode in { RMMOVQ, PUSHQ }    : M_valA; 
+	M_icode in { RMMOVQ, PUSHQ }    : M_valA;
     M_icode in { CALL }             : M_valP;
     1                               : 0xBADBADBAD;
 ];
@@ -267,7 +265,7 @@ register mW {
 
 ########## Writeback #############
 reg_inputE = [
-    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL }   : W_valE; #push writes to rsp
+    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL }   : W_valE;
     1                                                       : 0xBADBADBAD;
 ];
 reg_inputM = [

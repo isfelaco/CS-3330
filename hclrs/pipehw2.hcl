@@ -2,7 +2,6 @@
 register pP { 
     predPC : 64 = 0;
     misprediction : 1 = 0;
-    valP : 64 = 0;
 }
 register cC {
 	SF:1 = 0;
@@ -13,8 +12,8 @@ register cC {
 
 ########## Fetch #############
 pc = [
-    P_misprediction : P_valP;
-    1               : P_predPC;
+    P_misprediction : M_valP;   # if there was a misprediction, go to instruction after last jump
+    1               : P_predPC; # else, continue to next instruction
 ];
 
 f_icode = i10bytes[4..8];
@@ -26,7 +25,7 @@ f_rA = [
 ];
 f_rB = [
 	f_icode in { RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ }  : i10bytes[8..12];
-    f_icode in { PUSHQ, POPQ, CALL }                    : REG_RSP;
+    f_icode in { PUSHQ, POPQ, CALL, RET }               : REG_RSP;
 	1                                                   : REG_NONE;
 ];
 f_valC = [
@@ -51,11 +50,9 @@ p_predPC = [
 ];
 
 f_Stat = [
-	f_icode == HALT                                         : STAT_HLT;
-	f_icode in {NOP, RRMOVQ, IRMOVQ, RMMOVQ, MRMOVQ, OPQ, JXX, PUSHQ, POPQ, CALL }   : STAT_AOK;
-    #icode > 0xb : STAT_INS;
-	#1 : STAT_AOK;
-	1                                                       : STAT_INS;
+	f_icode == HALT : STAT_HLT;
+    f_icode > 0xb   : STAT_INS;
+	1               : STAT_AOK;
 ];
 
 
@@ -79,19 +76,11 @@ reg_srcA = [
 	1                                                       : REG_NONE;
 ];
 reg_srcB = [
-	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : D_rB;
-	1 : REG_NONE;
+	D_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL, RET }  : D_rB;
+	1                                                           : REG_NONE;
 ];
 
-wire loadUse : 1;
-loadUse = E_icode == MRMOVQ && reg_srcB == e_dstM;  # MRMOVQ is moving to a register
-stall_P = f_Stat != STAT_AOK || loadUse;            # keep the PC the same next cycle
-stall_D = loadUse;                                  # keep same instruction in decode next cycle
-bubble_E = loadUse || P_misprediction;                                 # send nop to execute next cycle
-#bubble_M = P_misprediction;
-# had to comment this out, but probably will effect other stuff
-
-
+# forwarding
 d_valA = [
     reg_srcA == REG_NONE : 0;
 
@@ -119,12 +108,12 @@ d_valB = [
 
 # destination selection
 d_dstE = [
-	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : D_rB;
-	1                                   : REG_NONE;
+	D_icode in { IRMOVQ, RRMOVQ, OPQ, PUSHQ, POPQ, CALL, RET }  : D_rB;
+	1                                                           : REG_NONE;
 ];
 d_dstM = [
-    D_icode in { MRMOVQ, POPQ }           : D_rA;
-    1                               : REG_NONE;
+    D_icode in { MRMOVQ, POPQ } : D_rA;
+    1                           : REG_NONE;
 ];
 
 
@@ -169,12 +158,11 @@ wire operand1:64, operand2:64;
 operand1 = [
     E_icode in { RRMOVQ, OPQ }      : E_valA;
 	E_icode in { RMMOVQ, MRMOVQ }   : E_valC;
-    E_icode in { PUSHQ, POPQ, CALL }      : 8;
 	1                               : 0;
 ];
 operand2 = [
-	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL }  : E_valB;
-	1                                   : 0;
+	E_icode in { RMMOVQ, MRMOVQ, OPQ, PUSHQ, POPQ, CALL, RET }  : E_valB;
+	1                                                           : 0;
 ];
 
 e_valE = [
@@ -187,8 +175,8 @@ e_valE = [
     E_icode == OPQ && E_ifun == ANDQ    : operand1 & operand2 ;
     E_icode == OPQ && E_ifun == XORQ    : operand1 ^ operand2 ;
 
-    E_icode in { PUSHQ, CALL }          : operand2 - operand1;
-    E_icode in { POPQ }                 : operand1 + operand2;
+    E_icode in { PUSHQ, CALL }          : operand2 - 8; # old rsp pointer - 8
+    E_icode in { POPQ, RET }            : operand2 + 8; # old rsp pointer + 8
 
 	1                                   : 0;
 ];
@@ -198,10 +186,24 @@ c_ZF = e_valE == 0;
 c_SF = e_valE >= 0x8000000000000000;
 stall_C = E_icode != OPQ;
 
-p_misprediction = E_icode in { JXX } && !e_Cnd;
-p_valP = E_valP;
-stall_E = loadUse && p_misprediction;
-bubble_D = p_misprediction;
+p_misprediction = E_icode in { JXX } && !e_Cnd; # fetch correct instruction next cycle
+
+e_loadUse = (E_icode in {MRMOVQ}) && (E_dstM in {reg_srcA, reg_srcB}); 
+
+# i detect a misprediction at the end of JXX in execute
+# there are incorrect instructions in fetch and decode
+# i can bubble memory on the next next cycle so it doesn't take
+# the input from the incorrect instruction
+# and i can bubble immediately bubble decode for next cycle
+
+### Fetch
+
+### Decode
+stall_D = e_loadUse;
+bubble_D = p_misprediction == 1;
+
+### Execute
+bubble_E = e_loadUse || p_misprediction;
 
 ########################################################################################
 e_Stat = E_Stat;
@@ -222,20 +224,21 @@ register eM {
   dstE : 4 = REG_NONE;
   dstM : 4 = REG_NONE;
   Cnd : 1 = true;
+  loadUse : 1 = false;
 }
 ########################################################################################
 
 
 ########## Memory #############
-mem_readbit = M_icode in { MRMOVQ, POPQ };
+mem_readbit = M_icode in { MRMOVQ, POPQ, RET };
 mem_writebit = M_icode in { RMMOVQ, PUSHQ, CALL };
 mem_addr = [
-	M_icode in { MRMOVQ, RMMOVQ }   : M_valE;
-    M_icode in { PUSHQ, POPQ, CALL }       : M_valB;
+	M_icode in { MRMOVQ, RMMOVQ, PUSHQ, CALL }   : M_valE;
+    M_icode in { POPQ, RET }             : M_valB;
     1                               : 0xBADBADBAD;
 ];
 mem_input = [
-	M_icode in { RMMOVQ, PUSHQ }    : M_valA;
+	M_icode in { RMMOVQ, PUSHQ }    : M_valA; 
     M_icode in { CALL }             : M_valP;
     1                               : 0xBADBADBAD;
 ];
@@ -250,6 +253,7 @@ m_valC = M_valC;
 m_valE = M_valE;
 m_dstE = M_dstE;
 m_dstM = M_dstM;
+m_loadUse = M_loadUse;
 register mW {
   Stat : 3 = STAT_AOK;
   icode : 4 = NOP;
@@ -259,13 +263,14 @@ register mW {
   dstE : 4 = REG_NONE;
   valM : 64 = 0;
   dstM : 4 = REG_NONE;
+  loadUse : 1 = false;
 }
 ########################################################################################
 
 
 ########## Writeback #############
 reg_inputE = [
-    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL }   : W_valE;
+    W_icode in { RRMOVQ, IRMOVQ, OPQ, PUSHQ, POPQ, CALL, RET }   : W_valE; #push writes to rsp
     1                                                       : 0xBADBADBAD;
 ];
 reg_inputM = [
@@ -279,3 +284,5 @@ reg_dstM = W_dstM;
 ########## PC and Status updates #############
 
 Stat = W_Stat;
+
+stall_P = W_loadUse || d_Stat != STAT_AOK;
