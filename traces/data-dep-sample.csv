@@ -1,0 +1,12 @@
+orig_pc,orig_pc_part,orig_instruction,is_conditional_branch,is_computed_jump,is_constant_jump,srcA,srcB,dst,is_memory_read,is_memory_write,mem_addr,branch_taken
+0,0,,N,N,N,0,3,3,N,N,,
+2,0,,N,N,N,3,1,1,N,N,,
+4,0,,N,N,N,8,9,9,N,N,,
+6,0,,N,N,N,10,11,11,N,N,,
+8,0,,N,N,N,8,9,9,N,N,,
+10,0,,N,N,N,10,11,11,N,N,,
+12,0,,N,N,N,8,9,9,N,N,,
+14,0,,N,N,N,10,11,11,N,N,,
+16,0,,N,N,N,3,1,1,N,N,,
+18,0,,N,N,N,2,1,1,N,N,,
+20,0,,N,N,N,,,,N,N,,
