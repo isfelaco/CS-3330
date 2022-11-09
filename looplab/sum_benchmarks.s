@@ -31,34 +31,23 @@ sum_C:
 	.section	.rodata.str1.8,"aMS",@progbits,1
 	.align 8
 .LC0:
-	.string	"sum_clang6_O: simple C compiled with clang 6 -O -mavx2"
-	.align 8
-.LC1:
-	.string	"sum_gcc7_O3: simple C compiled with GCC7 -O3 -mavx2"
-	.align 8
-.LC2:
-	.string	"sum_C: simple C compiled on this machine with settings in Makefile"
-	.align 8
-.LC3:
 	.string	"sum_simple: simple ASM implementation"
 	.section	.rodata.str1.1,"aMS",@progbits,1
-.LC4:
+.LC1:
 	.string	"sum_runrolled2"
+.LC2:
+	.string	"sum_runrolled4"
 	.section	.data.rel,"aw"
 	.align 32
 	.type	functions, @object
-	.size	functions, 96
+	.size	functions, 64
 functions:
-	.quad	sum_clang6_O
-	.quad	.LC0
-	.quad	sum_gcc7_O3
-	.quad	.LC1
-	.quad	sum_C
-	.quad	.LC2
 	.quad	sum_simple
-	.quad	.LC3
+	.quad	.LC0
 	.quad	sum_unrolled2
-	.quad	.LC4
+	.quad	.LC1
+	.quad	sum_unrolled4
+	.quad	.LC2
 	.quad	0
 	.quad	0
 	.ident	"GCC: (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0"

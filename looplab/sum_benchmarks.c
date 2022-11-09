@@ -19,22 +19,24 @@ extern unsigned short sum_gcc7_O3(long, unsigned short *);
 extern unsigned short sum_simple(long, unsigned short *);
 // ADD PROTOTYPES HERE
 extern unsigned short sum_unrolled2(long, unsigned short *);
+extern unsigned short sum_unrolled4(long, unsigned short *);
 
 
 /* This is the list of functions to test */
 function_info functions[] = {
     /* compiled versions from various compilers, each in their own .s file: */ 
-    {sum_clang6_O, "sum_clang6_O: simple C compiled with clang 6 -O -mavx2"},
-    {sum_gcc7_O3, "sum_gcc7_O3: simple C compiled with GCC7 -O3 -mavx2"}, 
+    // {sum_clang6_O, "sum_clang6_O: simple C compiled with clang 6 -O -mavx2"},
+    // {sum_gcc7_O3, "sum_gcc7_O3: simple C compiled with GCC7 -O3 -mavx2"}, 
 
     /* source code for this version is above */
-    {sum_C, "sum_C: simple C compiled on this machine with settings in Makefile"},
+    // {sum_C, "sum_C: simple C compiled on this machine with settings in Makefile"},
 
     /* source code for this version is in sum_simple.s */
     {sum_simple, "sum_simple: simple ASM implementation"},
 
     // ADD ENTRIES HERE!
     {sum_unrolled2, "sum_runrolled2"},
+    {sum_unrolled4, "sum_runrolled4"},
    
     {NULL, NULL},
 };

@@ -19,8 +19,8 @@
 // available to other files.
 
 // unroll the loop to handle four elements per iteration
-.global sum_unrolled2
-sum_unrolled2:
+.global sum_unrolled4
+sum_unrolled4:
     // set sum (%ax) to 0
     xor %eax, %eax
     
@@ -34,12 +34,12 @@ sum_unrolled2:
 .L_loop:
     // sum (%ax) += a[i]
     addw (%rsi,%rcx,2), %ax
-
-    // sum (%ax) += a[i+1]
     addw 2(%rsi,%rcx,2), %ax
+    addw 4(%rsi,%rcx,2), %ax
+    addw 6(%rsi,%rcx,2), %ax
 
-    // i += 2
-    addq $2, %rcx
+    // i += 4
+    addq $4, %rcx
     
     // i < end?
     cmpq %rdi, %rcx
