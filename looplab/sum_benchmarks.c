@@ -18,6 +18,8 @@ extern unsigned short sum_clang6_O(long, unsigned short *);
 extern unsigned short sum_gcc7_O3(long, unsigned short *);
 extern unsigned short sum_simple(long, unsigned short *);
 // ADD PROTOTYPES HERE
+extern unsigned short sum_unrolled2(long, unsigned short *);
+
 
 /* This is the list of functions to test */
 function_info functions[] = {
@@ -32,6 +34,7 @@ function_info functions[] = {
     {sum_simple, "sum_simple: simple ASM implementation"},
 
     // ADD ENTRIES HERE!
+    {sum_unrolled2, "sum_runrolled2"},
    
     {NULL, NULL},
 };
