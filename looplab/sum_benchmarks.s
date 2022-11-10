@@ -34,13 +34,15 @@ sum_C:
 	.string	"sum_simple: simple ASM implementation"
 	.section	.rodata.str1.1,"aMS",@progbits,1
 .LC1:
-	.string	"sum_runrolled2"
+	.string	"sum_unrolled2"
 .LC2:
-	.string	"sum_runrolled4"
+	.string	"sum_unrolled4"
+.LC3:
+	.string	"sum_multiple_accum"
 	.section	.data.rel,"aw"
 	.align 32
 	.type	functions, @object
-	.size	functions, 64
+	.size	functions, 80
 functions:
 	.quad	sum_simple
 	.quad	.LC0
@@ -48,6 +50,8 @@ functions:
 	.quad	.LC1
 	.quad	sum_unrolled4
 	.quad	.LC2
+	.quad	sum_multiple_accum
+	.quad	.LC3
 	.quad	0
 	.quad	0
 	.ident	"GCC: (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0"

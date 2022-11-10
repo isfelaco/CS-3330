@@ -20,7 +20,7 @@ extern unsigned short sum_simple(long, unsigned short *);
 // ADD PROTOTYPES HERE
 extern unsigned short sum_unrolled2(long, unsigned short *);
 extern unsigned short sum_unrolled4(long, unsigned short *);
-
+extern unsigned short sum_multiple_accum(long, unsigned short *);
 
 /* This is the list of functions to test */
 function_info functions[] = {
@@ -35,8 +35,9 @@ function_info functions[] = {
     {sum_simple, "sum_simple: simple ASM implementation"},
 
     // ADD ENTRIES HERE!
-    {sum_unrolled2, "sum_runrolled2"},
-    {sum_unrolled4, "sum_runrolled4"},
+    {sum_unrolled2, "sum_unrolled2"},
+    {sum_unrolled4, "sum_unrolled4"},
+    {sum_multiple_accum, "sum_multiple_accum"},
    
     {NULL, NULL},
 };
