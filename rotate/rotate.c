@@ -6,10 +6,10 @@
  * Please fill in the following struct with your name and the name you'd like to appear on the scoreboard
  */
 who_t who = {
-    "Your Scoreboard Identifier Here",           /* Scoreboard name */
+    "isf4rjk",           /* Scoreboard name */
 
-    "Your Name Here",   /* Full name */
-    "your@email.here",  /* Email address */
+    "Isabella Felaco",   /* Full name */
+    "isf4rjk@virginia.edu",  /* Email address */
 };
 
 /***************
