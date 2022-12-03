@@ -37,8 +37,18 @@ void naive_rotate(int dim, pixel *src, pixel *dst)
 char another_rotate_descr[] = "another_rotate: Another version of rotate";
 void another_rotate(int dim, pixel *src, pixel *dst) 
 {
-    naive_rotate(dim, src, dst);
-}
+    // edit this so it is faster than naive_rotate
+    for (int i = 0; i < dim; i += 32) {
+        for (int j = 0; j < dim; j += 4) {
+            for (int ii = i; ii < i + 32; ++ii) {
+                dst[RIDX(dim-1-(j), ii, dim)] = src[RIDX(ii, j, dim)];
+                dst[RIDX(dim-1-(j+1), ii, dim)] = src[RIDX(ii, j + 1, dim)];
+                dst[RIDX(dim-1-(j+2), ii, dim)] = src[RIDX(ii, j + 2, dim)];
+                dst[RIDX(dim-1-(j+3), ii, dim)] = src[RIDX(ii, j + 3, dim)];
+            }
+        }
+    }
+}   
 
 /*********************************************************************
  * register_rotate_functions - Register all of your different versions
