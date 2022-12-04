@@ -77,8 +77,8 @@ static pixel avg(int dim, int i, int j, pixel *src)
 
     initialize_pixel_sum(&sum);
     for(int jj=max(j-1, 0); jj <= min(j+1, dim-1); jj++) 
-	for(int ii=max(i-1, 0); ii <= min(i+1, dim-1); ii++) 
-	    accumulate_sum(&sum, src[RIDX(ii,jj,dim)]);
+        for(int ii=max(i-1, 0); ii <= min(i+1, dim-1); ii++)
+            accumulate_sum(&sum, src[RIDX(ii,jj,dim)]);
 
     assign_sum_to_pixel(&current_pixel, sum);
  
@@ -108,7 +108,103 @@ void naive_smooth(int dim, pixel *src, pixel *dst)
 char another_smooth_descr[] = "another_smooth: Another version of smooth";
 void another_smooth(int dim, pixel *src, pixel *dst) 
 {
-    naive_smooth(dim, src, dst);
+    pixel_sum my_sum;
+
+    printf("Dim %d", dim);
+
+    /*
+    * edge cases
+    */
+    // top left corner
+    initialize_pixel_sum((&my_sum));
+    accumulate_sum(&my_sum, src[RIDX(0,0,dim)]);    // corner
+    accumulate_sum(&my_sum, src[RIDX(0,1,dim)]);    // pixel to the right of the corner
+    accumulate_sum(&my_sum, src[RIDX(1,0,dim)]);    // pixel below the corner
+    accumulate_sum(&my_sum, src[RIDX(1,1,dim)]);    // pixel diagonal to the corner
+    assign_sum_to_pixel(&dst[RIDX(0, 0, dim)], my_sum);
+    // top right corner
+    initialize_pixel_sum((&my_sum));
+    accumulate_sum(&my_sum, src[RIDX(0,dim,dim)]);      // corner
+    accumulate_sum(&my_sum, src[RIDX(0,dim-1,dim)]);    // pixel to the left of corner
+    accumulate_sum(&my_sum, src[RIDX(1,dim,dim)]);      // pixel below the corner
+    accumulate_sum(&my_sum, src[RIDX(1,dim-1,dim)]);    // pixel diagonal to the corner
+    assign_sum_to_pixel(&dst[RIDX(dim,dim,dim)], my_sum);
+    // bottom left corner
+    initialize_pixel_sum((&my_sum));
+    accumulate_sum(&my_sum, src[RIDX(dim,0,dim)]);      // corner
+    accumulate_sum(&my_sum, src[RIDX(dim,1,dim)]);      // pixel to the right of corner
+    accumulate_sum(&my_sum, src[RIDX(dim-1,0,dim)]);    // pixel above the corner
+    accumulate_sum(&my_sum, src[RIDX(dim-1,1,dim)]);    // pixel diagonal to the corner
+    assign_sum_to_pixel(&dst[RIDX(dim,0,dim)], my_sum);
+    // bottom right corner
+    initialize_pixel_sum((&my_sum));
+    accumulate_sum(&my_sum, src[RIDX(dim,dim,dim)]);        // corner
+    accumulate_sum(&my_sum, src[RIDX(dim,dim-1,dim)]);      // pixel to the left of corner
+    accumulate_sum(&my_sum, src[RIDX(dim,dim-1,dim)]);      // pixel above the corner
+    accumulate_sum(&my_sum, src[RIDX(dim-1,dim-1,dim)]);    // pixel diagonal to the corner
+    assign_sum_to_pixel(&dst[RIDX(dim,dim,dim)], my_sum);
+    // top border
+    for (int i = 1; i < dim-1; i++) {   // i = 1 and dim-1 because we already did the corner
+        initialize_pixel_sum((&my_sum));
+        accumulate_sum(&my_sum, src[RIDX(0,i,dim)]);    // pixel
+        accumulate_sum(&my_sum, src[RIDX(0,i-1,dim)]);  // pixel to the left
+        accumulate_sum(&my_sum, src[RIDX(0,i+1,dim)]);  // pixel to the right
+        accumulate_sum(&my_sum, src[RIDX(1,i,dim)]);    // pixel below
+        accumulate_sum(&my_sum, src[RIDX(1,i-1,dim)]);  // pixel diagonal to the left
+        accumulate_sum(&my_sum, src[RIDX(1,i+1,dim)]);  // pixel diagonal to the right
+        assign_sum_to_pixel(&dst[RIDX(0,i,dim)], my_sum);
+    }
+    // bottom border
+    for (int i = 1; i < dim-1; i++) {
+        initialize_pixel_sum((&my_sum));
+        accumulate_sum(&my_sum, src[RIDX(dim,i,dim)]);    // pixel
+        accumulate_sum(&my_sum, src[RIDX(dim,i-1,dim)]);  // pixel to the left
+        accumulate_sum(&my_sum, src[RIDX(dim,i+1,dim)]);  // pixel to the right
+        accumulate_sum(&my_sum, src[RIDX(dim-1,i,dim)]);    // pixel abovae
+        accumulate_sum(&my_sum, src[RIDX(dim-1,i-1,dim)]);  // pixel diagonal to the left
+        accumulate_sum(&my_sum, src[RIDX(dim-1,i+1,dim)]);  // pixel diagonal to the right
+        assign_sum_to_pixel(&dst[RIDX(dim,i,dim)], my_sum);
+    }
+    // left border
+    for (int i = 1; i < dim-1; i++) {
+        initialize_pixel_sum((&my_sum));
+        accumulate_sum(&my_sum, src[RIDX(i,0,dim)]);    // pixel
+        accumulate_sum(&my_sum, src[RIDX(i-1,0,dim)]);  // pixel above
+        accumulate_sum(&my_sum, src[RIDX(i+1,0,dim)]);  // pixel below
+        accumulate_sum(&my_sum, src[RIDX(i,1,dim)]);    // pixel to the right
+        accumulate_sum(&my_sum, src[RIDX(i-1,1,dim)]);  // pixel diagonal above
+        accumulate_sum(&my_sum, src[RIDX(i+1,1,dim)]);  // pixel diagonal below
+        assign_sum_to_pixel(&dst[RIDX(i,0,dim)], my_sum);
+    }
+    // right border
+    for (int i = 1; i < dim-1; i++) {
+        initialize_pixel_sum((&my_sum));
+        accumulate_sum(&my_sum, src[RIDX(i,dim,dim)]);    // pixel
+        accumulate_sum(&my_sum, src[RIDX(i-1,dim,dim)]);  // pixel above
+        accumulate_sum(&my_sum, src[RIDX(i+1,dim,dim)]);  // pixel below
+        accumulate_sum(&my_sum, src[RIDX(i,dim-1,dim)]);    // pixel to the left
+        accumulate_sum(&my_sum, src[RIDX(i-1,dim-1,dim)]);  // pixel diagonal above
+        accumulate_sum(&my_sum, src[RIDX(i+1,dim-1,dim)]);  // pixel diagonal to the right
+        assign_sum_to_pixel(&dst[RIDX(dim,i,dim)], my_sum);
+    }
+
+
+    // accumulate_sum(&my_sum, src[RIDX(,,dim)]); 
+
+    // accumulate sum for 4 pixels for the corners
+    // initialize first
+    // assign sum to pixel
+    // then do all the edges using loops
+    // then do the i, j nested loop
+ 
+    // don't declare new sum just can initialize once done averaging
+    // take care of edge cases
+    // nested for loop
+    // 3 by 3 grid
+    // re-initialize pixel sum and sum up the 9 squares in the grid around the pixel
+    // using accumulate sum
+    // then assign sum to pixel
+    // 9 lines
 }
 
 /*********************************************************************
